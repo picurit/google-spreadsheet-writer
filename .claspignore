@@ -1,0 +1,29 @@
+# Ignore all files by default
+**/**
+
+# Include only necessary files for Google Apps Script
+!appsscript.json
+!**/*.gs
+!**/*.js
+!**/*.ts
+!**/*.html
+
+# Exclude specific directories even if they contain valid files
+.git/**
+node_modules/**
+.vscode/**
+.idea/**
+logs/**
+
+# Exclude configuration and sensitive files
+.env*
+.clasp.json
+*.log
+*.tmp
+*.temp
+
+# Exclude OS and editor generated files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
