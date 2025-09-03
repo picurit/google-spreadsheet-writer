@@ -13,6 +13,8 @@
 node_modules/**
 .vscode/**
 .idea/**
+docs/**
+scripts/**
 logs/**
 
 # Exclude configuration and sensitive files
