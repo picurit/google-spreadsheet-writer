@@ -2,6 +2,7 @@
 .clasp.json
 
 # Node.js dependencies
+package-lock.json
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -38,6 +39,7 @@ logs/
 *.js.map
 dist/
 build/
+coverage/
 
 # Temporary files
 *.tmp
