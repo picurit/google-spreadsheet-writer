@@ -28,10 +28,9 @@ module.exports = {
     // Add CommonJS exports for testing
     const exportCode = `
     // Auto-generated exports for Jest testing
+    /* istanbul ignore next */
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {
-            ${functionNames.join(',\n        ')}
-        };
+        module.exports = { ${functionNames.join(',')} };
     }`;
 
     return {
