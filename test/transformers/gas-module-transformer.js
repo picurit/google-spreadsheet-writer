@@ -27,12 +27,12 @@ module.exports = {
 
     // Add CommonJS exports for testing
     const exportCode = `
-// Auto-generated exports for Jest testing
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        ${functionNames.join(',\n        ')}
-    };
-}`;
+    // Auto-generated exports for Jest testing
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {
+            ${functionNames.join(',\n        ')}
+        };
+    }`;
 
     return {
       code: sourceText + exportCode
