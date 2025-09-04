@@ -243,6 +243,48 @@ describe('RequestParser', () => {
         expect(result.data).toEqual(validTestData);
       });
 
+      test('should preserve validSpreadsheetMetadata structure during extraction', () => {
+        // Test that validSpreadsheetMetadata is preserved correctly
+        const result = extractSpreadsheetAndData(validPayload);
+        
+        // Verify original structure is maintained with normalization
+        expect(result.metadata.schemaVersion).toBe(validSpreadsheetMetadata.schemaVersion);
+        expect(result.metadata.defaults.sheet.name).toBe('Test Sheet');
+        expect(result.metadata.defaults.cellStyle.fontSize).toBe(10);
+        expect(result.metadata.defaults.headerStyle.bold).toBe(true);
+        expect(result.metadata.defaults.typeDefaults.string.align).toBe('left');
+        expect(result.metadata.defaults.typeDefaults.number.align).toBe('right');
+        expect(result.metadata.defaults.globalHeader.enabled).toBe(true);
+        
+        // Verify mappings are preserved
+        expect(result.metadata.mappings).toHaveLength(2);
+        expect(result.metadata.mappings[0]).toEqual({ id: 'test-mapping-1', path: '/items/*' });
+        expect(result.metadata.mappings[1]).toEqual({ id: 'test-mapping-2', path: '/metadata/info' });
+        
+        // Verify normalization has added default properties
+        expect(result.metadata.defaults.numberPrecisionThreshold).toBe(9007199254740991);
+        expect(result.metadata.pathSyntax.type).toBe('json-pointer-wildcard');
+      });
+
+      test('should work with validSpreadsheetMetadata in different payload structures', () => {
+        const alternativePayload = {
+          $spreadsheet: validSpreadsheetMetadata,
+          $data: {
+            differentStructure: true,
+            items: ['item1', 'item2', 'item3'],
+            metadata: { type: 'alternative' }
+          }
+        };
+        
+        const result = extractSpreadsheetAndData(alternativePayload);
+        
+        // Should preserve validSpreadsheetMetadata regardless of data structure
+        expect(result.metadata.defaults.sheet.name).toBe('Test Sheet');
+        expect(result.metadata.mappings).toHaveLength(2);
+        expect(result.data.differentStructure).toBe(true);
+        expect(result.data.items).toEqual(['item1', 'item2', 'item3']);
+      });
+
       test('should handle minimal valid payload', () => {
         const result = extractSpreadsheetAndData(edgeCasePayloads.minimalValid);
         
@@ -469,6 +511,62 @@ describe('RequestParser', () => {
       });
     });
 
+    test('should preserve validSpreadsheetMetadata through complete parsing pipeline', () => {
+      // Test end-to-end parsing preserves validSpreadsheetMetadata
+      const result = parseHttpEvent(validHttpEvent);
+      
+      // Verify validSpreadsheetMetadata is preserved through the full pipeline
+      expect(result.metadata.schemaVersion).toBe(validSpreadsheetMetadata.schemaVersion);
+      expect(result.metadata.defaults.sheet.name).toBe('Test Sheet');
+      expect(result.metadata.defaults.cellStyle.fontSize).toBe(10);
+      expect(result.metadata.defaults.headerStyle.bold).toBe(true);
+      expect(result.metadata.defaults.typeDefaults.string.align).toBe('left');
+      expect(result.metadata.defaults.typeDefaults.number.align).toBe('right');
+      expect(result.metadata.defaults.globalHeader.enabled).toBe(true);
+      
+      // Verify mappings preservation
+      expect(result.metadata.mappings).toHaveLength(2);
+      expect(result.metadata.mappings[0]).toEqual({ id: 'test-mapping-1', path: '/items/*' });
+      expect(result.metadata.mappings[1]).toEqual({ id: 'test-mapping-2', path: '/metadata/info' });
+      
+      // Verify data preservation
+      expect(result.data).toEqual(validTestData);
+      expect(result.data.items).toHaveLength(2);
+      expect(result.data.metadata.info).toBe('Test metadata');
+    });
+
+    test('should handle complex payload with validSpreadsheetMetadata variations', () => {
+      const complexPayload = {
+        $spreadsheet: {
+          ...validSpreadsheetMetadata,
+          customProperty: 'additional-config',
+          defaults: {
+            ...validSpreadsheetMetadata.defaults,
+            customDefault: { value: 'custom' }
+          }
+        },
+        $data: {
+          ...validTestData,
+          additionalData: 'extra-info'
+        }
+      };
+
+      const complexEvent = {
+        postData: {
+          contents: JSON.stringify(complexPayload)
+        }
+      };
+
+      const result = parseHttpEvent(complexEvent);
+      
+      // Should preserve both original validSpreadsheetMetadata and extensions
+      expect(result.metadata.defaults.sheet.name).toBe('Test Sheet'); // from validSpreadsheetMetadata
+      expect(result.metadata.customProperty).toBe('additional-config'); // custom addition
+      expect(result.metadata.defaults.customDefault.value).toBe('custom'); // custom addition
+      expect(result.data.items).toEqual(validTestData.items); // from validTestData
+      expect(result.data.additionalData).toBe('extra-info'); // custom addition
+    });
+
     test('should handle deeply nested data structures', () => {
       const deepEvent = {
         postData: {
@@ -496,6 +594,109 @@ describe('RequestParser', () => {
 
   describe('normalizeSpreadsheetMetadata', () => {
     describe('Valid metadata normalization', () => {
+      test('should preserve valid complete metadata without changes', () => {
+        // Test using the validSpreadsheetMetadata fixture
+        const result = normalizeSpreadsheetMetadata(validSpreadsheetMetadata);
+        
+        // Should preserve all original structure and values
+        expect(result.schemaVersion).toBe(validSpreadsheetMetadata.schemaVersion);
+        expect(result.defaults.sheet.name).toBe('Test Sheet');
+        expect(result.defaults.cellStyle.fontSize).toBe(10);
+        expect(result.defaults.headerStyle.bold).toBe(true);
+        expect(result.defaults.typeDefaults.string.align).toBe('left');
+        expect(result.defaults.typeDefaults.number.align).toBe('right');
+        expect(result.defaults.globalHeader.enabled).toBe(true);
+        expect(result.mappings).toHaveLength(2);
+        expect(result.mappings[0]).toEqual({ id: 'test-mapping-1', path: '/items/*' });
+        expect(result.mappings[1]).toEqual({ id: 'test-mapping-2', path: '/metadata/info' });
+        
+        // Should add default missing properties
+        expect(result.defaults.numberPrecisionThreshold).toBe(9007199254740991);
+        expect(result.defaults.nullDisplay).toBe('');
+        expect(result.defaults.emptyArrayDisplay).toBe('[empty array]');
+        expect(result.defaults.emptyObjectDisplay).toBe('{ }');
+        expect(result.defaults.emptyStringDisplay).toBe('');
+        expect(result.pathSyntax.type).toBe('json-pointer-wildcard');
+      });
+
+      test('should handle validSpreadsheetMetadata with missing display properties', () => {
+        // Create a copy of validSpreadsheetMetadata without display properties
+        const metadataWithoutDisplay = {
+          ...validSpreadsheetMetadata,
+          defaults: {
+            ...validSpreadsheetMetadata.defaults
+            // Deliberately missing display properties
+          }
+        };
+        
+        const result = normalizeSpreadsheetMetadata(metadataWithoutDisplay);
+        
+        // Should add missing display properties with defaults
+        expect(result.defaults.nullDisplay).toBe('');
+        expect(result.defaults.emptyArrayDisplay).toBe('[empty array]');
+        expect(result.defaults.emptyObjectDisplay).toBe('{ }');
+        expect(result.defaults.emptyStringDisplay).toBe('');
+        expect(result.defaults.numberPrecisionThreshold).toBe(9007199254740991);
+        
+        // Should preserve existing properties
+        expect(result.defaults.sheet.name).toBe('Test Sheet');
+        expect(result.defaults.cellStyle.fontSize).toBe(10);
+      });
+
+      test('should work with validSpreadsheetMetadata missing pathSyntax', () => {
+        // Create a copy without pathSyntax
+        const { pathSyntax, ...metadataWithoutPathSyntax } = validSpreadsheetMetadata;
+        
+        const result = normalizeSpreadsheetMetadata(metadataWithoutPathSyntax);
+        
+        // Should add default pathSyntax
+        expect(result.pathSyntax).toEqual({
+          type: 'json-pointer-wildcard'
+        });
+        
+        // Should preserve everything else
+        expect(result.defaults.sheet.name).toBe('Test Sheet');
+        expect(result.mappings).toHaveLength(2);
+      });
+
+      test('should validate mappings from validSpreadsheetMetadata', () => {
+        // This should not throw since validSpreadsheetMetadata has valid mappings
+        expect(() => normalizeSpreadsheetMetadata(validSpreadsheetMetadata)).not.toThrow();
+        
+        const result = normalizeSpreadsheetMetadata(validSpreadsheetMetadata);
+        
+        // Verify mappings are preserved correctly
+        result.mappings.forEach(mapping => {
+          expect(mapping).toHaveProperty('id');
+          expect(mapping).toHaveProperty('path');
+          expect(typeof mapping.id).toBe('string');
+          expect(typeof mapping.path).toBe('string');
+        });
+      });
+
+      test('should handle extension of validSpreadsheetMetadata with custom properties', () => {
+        const extendedMetadata = {
+          ...validSpreadsheetMetadata,
+          customProperty: 'custom-value',
+          customObject: { nested: 'value' },
+          defaults: {
+            ...validSpreadsheetMetadata.defaults,
+            customDefault: 'custom-default-value'
+          }
+        };
+        
+        const result = normalizeSpreadsheetMetadata(extendedMetadata);
+        
+        // Should preserve custom properties
+        expect(result.customProperty).toBe('custom-value');
+        expect(result.customObject.nested).toBe('value');
+        expect(result.defaults.customDefault).toBe('custom-default-value');
+        
+        // Should preserve original valid metadata
+        expect(result.defaults.sheet.name).toBe('Test Sheet');
+        expect(result.mappings[0].id).toBe('test-mapping-1');
+      });
+
       test('should normalize minimal metadata with required defaults', () => {
         const rawMetadata = {
           schemaVersion: 'spreadsheet-render-1.0'
