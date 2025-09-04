@@ -1,0 +1,591 @@
+{
+  "$spreadsheet": {
+    "schemaVersion": "spreadsheet-render-1.0",
+    "description": "Render instructions for converting arbitrary JSON into Google Sheets. Use JSON-Pointer with '*' and '**' wildcards in paths. More specific mappings override more general ones. If multiple mappings match a path, the mapping with higher specificity wins; if same specificity, the later mapping in the list wins.",
+    "pathSyntax": {
+      "type": "json-pointer-wildcard",
+      "notes": [
+        "Use standard JSON Pointer segments, e.g. /object/key",
+        "'*' matches any single key or array index in that position, e.g. /array/*/id",
+        "'**' matches any number of path segments recursively, e.g. /object/**/value"
+      ],
+      "examples": ["/array_of_objects/*/name", "/object_nested/**/level3"]
+    },
+    "builtInTransforms": {
+      "parseDateISO": "Parse ISO-8601 string into spreadsheet Date",
+      "preserveLeadingZeros": "Treat string as TEXT to preserve leading zeros",
+      "toString": "Convert value to string",
+      "parseJSON": "Parse a JSON string into an object/array and render according to mapping",
+      "escapeControlChars": "Replace control chars with visible escape sequences (e.g. \\u0001 -> \\u0001)",
+      "bigIntToText": "Render integers greater than `numberPrecisionThreshold` as TEXT to prevent precision loss",
+      "join": "Join array primitives with provided separator",
+      "boolToCheckbox": "Render boolean as checkbox (TRUE/FALSE)"
+    },
+    "defaults": {
+      "sheet": {
+        "defaultColumnWidth": 120,
+        "defaultRowHeight": 21,
+        "freezeHeader": true,
+        "nameTemplate": "{root}", 
+        "createSheetsForDeepTables": true
+      },
+      "cellStyle": {
+        "fontFamily": "Arial",
+        "fontSize": 10,
+        "bold": false,
+        "italic": false,
+        "wrap": true,
+        "horizontalAlign": "LEFT",
+        "verticalAlign": "MIDDLE",
+        "textColor": "#000000",
+        "backgroundColor": "#FFFFFF"
+      },
+      "headerStyle": {
+        "fontFamily": "Arial",
+        "fontSize": 10,
+        "bold": true,
+        "wrap": true,
+        "horizontalAlign": "CENTER",
+        "backgroundColor": "#F2F2F2",
+        "textColor": "#000000"
+      },
+      "numberPrecisionThreshold": 9007199254740991,
+      "typeDefaults": {
+        "string": {
+          "numberFormat": { "type": "TEXT" },
+          "cellStyle": { "wrap": true },
+          "transform": null
+        },
+        "number": {
+          "numberFormat": { "type": "NUMBER", "pattern": "#,##0.########" },
+          "cellStyle": { "horizontalAlign": "RIGHT" },
+          "transform": null
+        },
+        "boolean": {
+          "renderAs": "CHECKBOX",
+          "cellStyle": { "horizontalAlign": "CENTER" }
+        },
+        "null": {
+          "display": "",
+          "cellStyle": { "italic": true, "textColor": "#888888" }
+        },
+        "array": {
+          "render": "inline-by-default",
+          "direction": "vertical",
+          "joiner": ", "
+        },
+        "object": {
+          "render": "flatten",
+          "flattenSeparator": ".",
+          "createSubtableForArrays": true
+        }
+      },
+      "globalHeader": {
+        "show": true,
+        "labelSource": "propertyName",
+        "styleRef": "headerStyle"
+      },
+      "nullDisplay": "",
+      "emptyArrayDisplay": "[empty array]",
+      "emptyObjectDisplay": "{ }",
+      "emptyStringDisplay": ""
+    },
+    "mappings": [
+      {
+        "id": "fallback-all",
+        "path": "/**",
+        "match": "recursive-wildcard",
+        "description": "Catch-all fallback mapping: render everything as a single cell (type-aware). More specific mappings later in this list will override this.",
+        "display": {
+          "mode": "cell",
+          "valueSource": "value", 
+          "typeResolution": "runtime", 
+          "formatting": "use typeDefaults"
+        }
+      },
+
+      {
+        "id": "root-as-key-value-list",
+        "path": "/",
+        "match": "exact",
+        "description": "Render the root object as a two-column vertical list: property | rendered value. Arrays/objects are expanded according to specialized mappings.",
+        "display": {
+          "mode": "propertyList",
+          "sheetName": "Main",
+          "direction": "vertical",
+          "columns": [
+            {
+              "col": 0,
+              "header": "Property",
+              "value": { "source": "propertyName", "transform": "toString" },
+              "style": { "bold": true }
+            },
+            {
+              "col": 1,
+              "header": "Value",
+              "value": { "source": "value", "transform": null },
+              "styleRef": "cellStyle"
+            }
+          ],
+          "afterEachProperty": {
+            "insertSpacingRows": 0,
+            "expandArraysInlineIfPrimitive": true
+          }
+        },
+        "behaviorHints": {
+          "expandObjectsInlineUpToDepth": 2,
+          "ifArrayOfObjectsCreateSubTable": true
+        }
+      },
+
+      {
+        "id": "array_of_objects_table",
+        "path": "/array_of_objects",
+        "match": "exact",
+        "description": "Render this specific array-of-objects as a table with explicit columns and types.",
+        "display": {
+          "mode": "table",
+          "sheetName": "array_of_objects",
+          "header": { "show": true, "labelSource": "propertyName", "styleRef": "headerStyle" },
+          "direction": "vertical",
+          "columns": [
+            {
+              "path": "/array_of_objects/*/id",
+              "header": "id",
+              "type": "number",
+              "numberFormat": { "type": "NUMBER", "pattern": "0" },
+              "cellStyle": { "horizontalAlign": "RIGHT" },
+              "width": 60
+            },
+            {
+              "path": "/array_of_objects/*/name",
+              "header": "name",
+              "type": "string",
+              "cellStyle": { "wrap": true },
+              "width": 220
+            },
+            {
+              "path": "/array_of_objects/*/active",
+              "header": "active",
+              "type": "boolean",
+              "renderAs": "CHECKBOX",
+              "width": 70,
+              "cellStyle": { "horizontalAlign": "CENTER" }
+            },
+            {
+              "path": "/array_of_objects/*/score",
+              "header": "score",
+              "type": "number",
+              "numberFormat": { "type": "NUMBER", "pattern": "#,##0.00" },
+              "cellStyle": { "horizontalAlign": "RIGHT" },
+              "width": 90
+            }
+          ],
+          "rowOptions": { "striped": true },
+          "tableOptions": { "freezeHeader": true }
+        }
+      },
+
+      {
+        "id": "array_numbers_horizontal",
+        "path": "/array_numbers",
+        "match": "exact",
+        "description": "Render array of primitives horizontally as a single-row (one column per element).",
+        "display": {
+          "mode": "list",
+          "sheetName": "Main",
+          "direction": "horizontal",
+          "valueSource": "value",
+          "item": {
+            "type": "number",
+            "numberFormat": { "type": "NUMBER", "pattern": "0" }
+          },
+          "header": { "show": false },
+          "joiner": null
+        }
+      },
+
+      {
+        "id": "array_mixed_expand",
+        "path": "/array_mixed",
+        "match": "exact",
+        "description": "Render mixed array: primitives shown inline (comma-joined) and nested objects/arrays expanded vertically beneath the property row with indentation.",
+        "display": {
+          "mode": "composed",
+          "sheetName": "Main",
+          "direction": "vertical",
+          "primitivesRender": { "as": "joined", "separator": ", " },
+          "objectsRender": { "as": "subrows", "indent": 2 },
+          "arraysRender": { "as": "subrows", "indent": 2 },
+          "cellStyle": { "wrap": true }
+        }
+      },
+
+      {
+        "id": "array_with_nulls",
+        "path": "/array_with_nulls",
+        "match": "exact",
+        "description": "Preserve nulls as empty cells while rendering other elements vertically.",
+        "display": {
+          "mode": "list",
+          "direction": "vertical",
+          "valueSource": "value",
+          "preserveNulls": true,
+          "emptyItemDisplay": "",
+          "item": {
+            "typeResolution": "runtime",
+            "nullDisplay": ""
+          }
+        }
+      },
+
+      {
+        "id": "object_nested_flatten_and_deep_table",
+        "path": "/object_nested",
+        "match": "prefix",
+        "description": "Flatten small nested objects inline (dot-separated columns). If an inner property is an array of objects (like level3_array) create a separate sheet table for it.",
+        "display": {
+          "mode": "object",
+          "sheetName": "Main",
+          "render": "flatten",
+          "flattenSeparator": ".",
+          "maxInlineFlattenDepth": 2,
+          "arrayOfObjectsBehavior": {
+            "createSubtable": true,
+            "sheetNameTemplate": "{parent}_{property}",
+            "subtableHeaderStyleRef": "headerStyle"
+          },
+          "cellStyle": { "wrap": true }
+        }
+      },
+
+      {
+        "id": "level3_array_table",
+        "path": "/object_nested/level1/level2/level3_array",
+        "match": "exact",
+        "description": "Subtable for nested array of objects coming from object_nested.level1.level2.level3_array",
+        "display": {
+          "mode": "table",
+          "sheetName": "object_nested.level3_array",
+          "header": { "show": true, "labelSource": "propertyName" },
+          "direction": "vertical",
+          "columns": [
+            {
+              "path": "/object_nested/level1/level2/level3_array/*/a",
+              "header": "a",
+              "type": "number",
+              "numberFormat": { "type": "NUMBER", "pattern": "0" }
+            },
+            {
+              "path": "/object_nested/level1/level2/level3_array/*/b",
+              "header": "b",
+              "type": "array",
+              "displayHint": { "as": "joined", "separator": "; " }
+            }
+          ]
+        }
+      },
+
+      {
+        "id": "keys_examples_preserve_header_names",
+        "path": "/keys_examples",
+        "match": "prefix",
+        "description": "Demonstrate handling of keys with spaces, leading digits and special characters. Headers will use the original key names but a safe fallback is provided.",
+        "display": {
+          "mode": "propertyList",
+          "sheetName": "Main",
+          "direction": "vertical",
+          "columns": [
+            { "col": 0, "header": "Property", "value": { "source": "propertyName" } },
+            { "col": 1, "header": "Value", "value": { "source": "value" } }
+          ],
+          "headerSanitize": {
+            "replaceCharacters": { " ": " ", "/": "/", "\\": "\\" },
+            "fallbackPrefix": "k_"
+          }
+        }
+      },
+
+      {
+        "id": "json_text_as_string_parse",
+        "path": "/json_text_as_string",
+        "match": "exact",
+        "description": "Treat strings that contain JSON as parseable. Default: show parsed result as nested table (if object/array) and keep raw string in a note.",
+        "display": {
+          "mode": "cell+expand",
+          "sheetName": "Main",
+          "cell": {
+            "showRaw": false,
+            "transform": "parseJSON",
+            "ifParsedIsObject": { "render": "propertyListInline", "flatten": true },
+            "ifParsedIsArray": { "render": "tableIfArrayOfObjectsElseList" }
+          },
+          "noteAppendRaw": true
+        }
+      },
+
+      {
+        "id": "number_leading_zero_string",
+        "path": "/number_leading_zero_string",
+        "match": "exact",
+        "description": "Preserve leading zeros by rendering as TEXT.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "transform": "preserveLeadingZeros",
+          "cellStyle": { "horizontalAlign": "LEFT" },
+          "numberFormat": { "type": "TEXT" }
+        }
+      },
+
+      {
+        "id": "hex_literal_as_string",
+        "path": "/hex_literal_as_string",
+        "match": "exact",
+        "description": "Render hex literals as TEXT to preserve the representation.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "cellStyle": { "horizontalAlign": "LEFT" },
+          "numberFormat": { "type": "TEXT" }
+        }
+      },
+
+      {
+        "id": "date_as_string_parse",
+        "path": "/date_as_string",
+        "match": "exact",
+        "description": "Parse ISO date string into sheet Date object and format it.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "date",
+          "transform": "parseDateISO",
+          "numberFormat": { "type": "DATE_TIME", "pattern": "yyyy-mm-dd hh:mm:ss" },
+          "cellStyle": { "horizontalAlign": "CENTER" }
+        }
+      },
+
+      {
+        "id": "string_control_escape",
+        "path": "/string_control",
+        "match": "exact",
+        "description": "Show control characters as escaped sequences so they don't break sheet rendering.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "transform": "escapeControlChars",
+          "cellStyle": { "wrap": false, "backgroundColor": "#FFF7E6" },
+          "numberFormat": { "type": "TEXT" }
+        }
+      },
+
+      {
+        "id": "string_escapes_unicode",
+        "path": "/string_escapes",
+        "match": "exact",
+        "description": "Preserve newlines & tabs; enable wrap so multiline appears correctly in a cell.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "cellStyle": { "wrap": true, "verticalAlign": "TOP" },
+          "numberFormat": { "type": "TEXT" }
+        }
+      },
+
+      {
+        "id": "string_unicode",
+        "path": "/string_unicode",
+        "match": "exact",
+        "description": "Unicode strings are supported; preserve glyphs.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "cellStyle": { "wrap": true },
+          "numberFormat": { "type": "TEXT" }
+        }
+      },
+
+      {
+        "id": "number_big_as_text",
+        "path": "/number_big",
+        "match": "exact",
+        "description": "Numbers above threshold are rendered as TEXT to avoid browser JS precision errors.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "transform": "bigIntToText",
+          "cellStyle": { "horizontalAlign": "LEFT" },
+          "numberFormat": { "type": "TEXT" }
+        }
+      },
+
+      {
+        "id": "empty_values",
+        "path": "/empty_values",
+        "match": "prefix",
+        "description": "Render empty containers and empty strings with explicit placeholders defined in defaults.",
+        "display": {
+          "mode": "object",
+          "render": "flatten",
+          "emptyArrayDisplay": "[empty array]",
+          "emptyObjectDisplay": "{ }",
+          "emptyStringDisplay": "",
+          "cellStyle": { "italic": true, "textColor": "#888888" }
+        }
+      },
+
+      {
+        "id": "nested_combination_complex",
+        "path": "/nested_combination",
+        "match": "exact",
+        "description": "Arbitrary nested arrays/objects: default to optical representation — show top-level as list, and expand nested arrays/objects in subrows/subtables.",
+        "display": {
+          "mode": "complex",
+          "sheetName": "Main",
+          "direction": "vertical",
+          "primitives": { "render": "joined", "separator": ", " },
+          "objects": { "render": "subrows", "indent": 2 },
+          "arrays": { "render": "subrowsOrSheets", "createSheetIfLarge": true },
+          "cellStyle": { "wrap": true }
+        }
+      },
+
+      {
+        "id": "array_empty_and_object_empty_rendering",
+        "path": "/array_empty",
+        "match": "exact",
+        "display": { "mode": "cell", "valueSource": "value", "renderEmptyAs": "[empty array]" }
+      },
+
+      {
+        "id": "object_empty",
+        "path": "/object_empty",
+        "match": "exact",
+        "display": { "mode": "cell", "valueSource": "value", "renderEmptyAs": "{ }" }
+      },
+
+      {
+        "id": "string_empty",
+        "path": "/string_empty",
+        "match": "exact",
+        "display": { "mode": "cell", "valueSource": "value", "renderEmptyAs": "" }
+      },
+
+      {
+        "id": "boolean_defaults",
+        "path": "/**/boolean",
+        "match": "type-pattern",
+        "description": "Type-based override for booleans anywhere: show as checkbox if supported else 'TRUE/FALSE'.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "boolean",
+          "renderAs": "CHECKBOX",
+          "cellStyle": { "horizontalAlign": "CENTER" }
+        }
+      },
+
+      {
+        "id": "number_defaults",
+        "path": "/**/number",
+        "match": "type-pattern",
+        "description": "Type-based override for numbers anywhere.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "number",
+          "numberFormat": { "type": "NUMBER", "pattern": "#,##0.########" },
+          "cellStyle": { "horizontalAlign": "RIGHT" }
+        }
+      },
+
+      {
+        "id": "string_defaults",
+        "path": "/**/string",
+        "match": "type-pattern",
+        "description": "Type-based override for strings anywhere; default to TEXT with wrapping.",
+        "display": {
+          "mode": "cell",
+          "typeHint": "string",
+          "numberFormat": { "type": "TEXT" },
+          "cellStyle": { "wrap": true }
+        }
+      }
+
+    ]
+  },
+
+  "$data": {
+    "string_simple": "Hello, world",
+    "string_empty": "",
+    "string_escapes": "LLine1\nTab\tQuotes \" \\ / \b \f \r",
+    "string_unicode": "ñ, 漢字, Привет, 😄",
+    "string_control": "\u0001",
+
+    "number_integer": 42,
+    "number_zero": 0,
+    "number_negative": -123,
+    "number_fraction": 3.14159,
+    "number_exponent": 1.23e+10,
+    "number_negative_exponent": -2.5E-3,
+    "number_big": 9007199254740991,
+
+    "boolean_true": true,
+    "boolean_false": false,
+    "null_value": null,
+
+    "array_empty": [],
+    "array_numbers": [1, 2, 3],
+    "array_mixed": ["text", 10, true, null, {"k": 1}, [1, 2, 3]],
+    "array_with_nulls": [null, 1, null],
+
+    "object_empty": {},
+    "object_nested": {
+      "level1": {
+        "level2": {
+          "level3": "deep value",
+          "level3_array": [{"a": 1}, {"b": [true, false, null]}]
+        }
+      }
+    },
+
+    "keys_examples": {
+      "simple": 1,
+      "with space": "space",
+      "123start": "text_as_key",
+      "unicode_ñ": "value",
+      "special-chars_!@#": "ok"
+    },
+
+    "json_text_as_string": "{\"a\":1,\"b\":[2,3]}",
+    "number_leading_zero_string": "00123",
+    "hex_literal_as_string": "0xFF",
+    "date_as_string": "2025-08-29T18:00:00Z",
+
+    "empty_values": {"empty_array": [], "empty_object": {}, "empty_string": ""},
+
+    "nested_combination": [
+      {"k": [{"deep": null}, []]},
+      []
+    ],
+
+    "array_of_objects": [
+      {
+        "id": 1,
+        "name": "Object A",
+        "active": true,
+        "score": 9.5
+      },
+      {
+        "id": 2,
+        "name": "Object B",
+        "active": false,
+        "score": 7.3
+      },
+      {
+        "id": 3,
+        "name": "Object C",
+        "active": true,
+        "score": 8.0
+      }
+    ]
+  }
+}

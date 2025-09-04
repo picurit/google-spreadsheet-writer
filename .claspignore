@@ -15,6 +15,7 @@ node_modules/**
 .idea/**
 docs/**
 scripts/**
+coverage/**
 logs/**
 
 # Exclude configuration and sensitive files
